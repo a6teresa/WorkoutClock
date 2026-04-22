@@ -4,39 +4,26 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Circular Arrow -->
+    <!-- Minimalist Clock Face -->
     <path
-        android:strokeColor="#000000"
-        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
         android:strokeLineCap="round"
-        android:pathData="M54,20 A34,34 0 1,1 25,75" />
-    <path
-        android:fillColor="#000000"
-        android:pathData="M54,20 L48,12 L62,15 Z" />
+        android:pathData="M54,24 A30,30 0 1,1 54,84 A30,30 0 1,1 54,24" />
 
-    <!-- Purple Box -->
+    <!-- Light Green "Tick" Symbol -->
     <path
-        android:fillColor="#6200EE"
-        android:pathData="M38,65 h32 v20 h-32 z" />
+        android:strokeColor="#90EE90"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M42,54 L50,62 L66,46" />
 
-    <!-- "15" (simplified paths) -->
-    <!-- 1 -->
+    <!-- Small Clock Hand -->
     <path
-        android:fillColor="#000000"
-        android:pathData="M44,35 h3 v22 h-3 z" />
-    <!-- 5 -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M52,35 h8 v3 h-5 v4 h3 a4,4 0 0,1 0,8 h-3 v-3 h3 a1,1 0 0,0 0,-2 h-6 z" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L54,34" />
 
-    <!-- "min" (simplified paths) -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M42,72 h2 v8 h-2 z M46,72 h2 v8 h-2 z M50,72 h2 v8 h-2 z" /> <!-- m placeholder -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M56,72 h2 v8 h-2 z" /> <!-- i placeholder -->
-    <path
-        android:fillColor="#000000"
-        android:pathData="M62,72 h2 v8 h-2 z M66,72 h2 v8 h-2 z" /> <!-- n placeholder -->
 </vector>

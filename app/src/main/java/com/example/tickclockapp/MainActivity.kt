@@ -6,18 +6,21 @@ import android.media.AudioTrack
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,7 +42,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -88,33 +91,45 @@ fun TickClockScreen() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+        val buttonHeight = 120.dp
+        val lightGreen = Color(0xFF90EE90)
+        
+        OutlinedButton(
+            onClick = { isRunning = !isRunning },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(buttonHeight),
+            border = BorderStroke(2.dp, lightGreen),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = Color.White
+            )
         ) {
-            Button(
-                onClick = { isRunning = !isRunning },
-                modifier = Modifier
-                    .width(140.dp)
-                    .height(80.dp)
-            ) {
-                Text(if (isRunning) "Pause" else "Start", fontSize = 20.sp)
-            }
-            Button(
-                onClick = { activity?.finish() },
-                modifier = Modifier
-                    .width(140.dp)
-                    .height(80.dp)
-            ) {
-                Text("Exit", fontSize = 20.sp)
-            }
+            Text(if (isRunning) "Pause" else "Start", fontSize = 32.sp)
+        }
+        
+        Spacer(modifier = Modifier.height(buttonHeight / 2))
+        
+        OutlinedButton(
+            onClick = { activity?.finish() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(buttonHeight),
+            border = BorderStroke(2.dp, lightGreen),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = Color.White
+            )
+        ) {
+            Text("Exit", fontSize = 32.sp)
         }
         
         Text(
             text = timeFormatted,
-            fontSize = 36.sp, // Doubled from 18.sp
+            fontSize = 48.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 24.dp)
+            modifier = Modifier.padding(top = 32.dp),
+            color = Color.White
         )
     }
 }
@@ -148,7 +163,7 @@ private fun generateTone(freqHz: Double, durationMs: Int) {
     val generatedSnd = ByteArray(2 * numSamples)
 
     // Fade-in and Fade-out parameters (to prevent clicking)
-    val fadeDurationMs = 10
+    val fadeDurationMs = 50
     val fadeSamples = (fadeDurationMs * sampleRate / 1000)
 
     for (i in 0 until numSamples) {
@@ -176,7 +191,7 @@ private fun generateTone(freqHz: Double, durationMs: Int) {
     val audioTrack = AudioTrack.Builder()
         .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
         )
