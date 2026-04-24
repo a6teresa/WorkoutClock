@@ -13,7 +13,8 @@ A specialized minimalist timer application for Android designed for high-intensi
 - **Smoothed Audio:** High-quality sine wave generation with 50ms fade-in/fade-out to eliminate clicking noises.
 - **Minimalist Aesthetic:** 
   - **Dark Mode:** Easy on the eyes in low-light environments.
-  - **Large Controls:** Big outlined buttons with light-green borders for easy access during workouts.
+  - **Always On:** Keeps the screen from sleeping while the app is active.
+  - **Status Indicator:** Large circular button that fills with dark green when running and clears when paused.
 - **Cumulative Timer:** Large, bold display of total elapsed time in `MM:SS` format.
 - **Standard Volume Control:** Uses `USAGE_MEDIA` to respond directly to your phone's volume buttons.
 
@@ -22,10 +23,10 @@ A specialized minimalist timer application for Android designed for high-intensi
 The UI is built using Jetpack Compose with the following precise measurements to ensure high visibility and ease of use during workouts:
 
 - **Main Container:** 16dp padding on all sides, vertical centering.
-- **Main Start/Pause Button (Circle):**
+- **Main Status Button (Circle):**
   - **Diameter:** 240dp
   - **Border:** 3dp (Light Green: #90EE90)
-  - **Label Font Size:** 40sp
+  - **Fill:** Dark Green (#006400) when running, Transparent when paused.
 - **Time Display:**
   - **Font Size:** 56sp, Bold
   - **Spacing:** 60dp top margin (distance from main button).

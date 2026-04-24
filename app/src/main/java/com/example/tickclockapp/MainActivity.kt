@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.RingtoneManager
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,6 +68,14 @@ fun TickClockScreen() {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
+    // Keep screen on while the app is visible
+    DisposableEffect(Unit) {
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     LaunchedEffect(isRunning) {
         if (isRunning) {
             while (isRunning) {
@@ -106,17 +115,19 @@ fun TickClockScreen() {
         
         // Main Circle Button
         val mainButtonSize = 240.dp
+        val darkGreen = Color(0xFF006400)
+        
         OutlinedButton(
             onClick = { isRunning = !isRunning },
             modifier = Modifier.size(mainButtonSize),
             shape = CircleShape,
             border = BorderStroke(3.dp, lightGreen),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.Transparent,
+                containerColor = if (isRunning) darkGreen else Color.Transparent,
                 contentColor = Color.White
             )
         ) {
-            Text(if (isRunning) "Pause" else "Start", fontSize = 40.sp)
+            // Label removed as per request
         }
         
         Spacer(modifier = Modifier.height(60.dp)) // Gap: 1/4 of main button size
