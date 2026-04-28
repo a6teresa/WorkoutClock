@@ -10,7 +10,10 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +47,8 @@ import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
 
+enum class AppScreen { Screen1, Screen2 }
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,11 +67,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TickClockScreen() {
-    var isRunning by remember { mutableStateOf(false) }
-    var totalSeconds by remember { mutableIntStateOf(0) }
-    var cycleSeconds by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val activity = context as? ComponentActivity
+    var currentScreen by remember { mutableStateOf(AppScreen.Screen1) }
+
+    // Screen 1 States
+    var isRunning1 by remember { mutableStateOf(false) }
+    var totalSeconds1 by remember { mutableIntStateOf(0) }
+    var cycleSeconds1 by remember { mutableIntStateOf(0) }
+
+    // Screen 2 States
+    var isRunning2 by remember { mutableStateOf(false) }
+    var totalSeconds2 by remember { mutableIntStateOf(0) }
 
     // Keep screen on while the app is visible
     DisposableEffect(Unit) {
@@ -76,84 +88,122 @@ fun TickClockScreen() {
         }
     }
 
-    LaunchedEffect(isRunning) {
-        if (isRunning) {
-            while (isRunning) {
-                // Tone logic based on 30-sec cycle
-                cycleSeconds++
-                if (cycleSeconds > 30) {
-                    cycleSeconds = 1
-                }
+    // Logic for Screen 1 (with 30s audio cycle)
+    LaunchedEffect(isRunning1) {
+        if (isRunning1) {
+            while (isRunning1) {
+                cycleSeconds1++
+                if (cycleSeconds1 > 30) cycleSeconds1 = 1
                 
-                playToneForSecond(cycleSeconds)
+                playToneForSecond(cycleSeconds1)
+                totalSeconds1++
                 
-                // Cumulative timer
-                totalSeconds++
-                
-                // Notification at 3:45, 7:45, 11:45, etc. (totalSeconds % 240 == 225)
-                if (totalSeconds > 0 && (totalSeconds % 240 == 225)) {
+                if (totalSeconds1 > 0 && (totalSeconds1 % 240 == 225)) {
                     playNotificationSound(context)
                 }
-                
                 delay(1000)
             }
         }
     }
 
-    val minutes = totalSeconds / 60
-    val remainingSeconds = totalSeconds % 60
-    val timeFormatted = "%02d:%02d".format(minutes, remainingSeconds)
+    // Logic for Screen 2 (no beeps, notification every 1 min)
+    LaunchedEffect(isRunning2) {
+        if (isRunning2) {
+            while (isRunning2) {
+                totalSeconds2++
+                if (totalSeconds2 > 0 && totalSeconds2 % 60 == 0) {
+                    playNotificationSound(context)
+                }
+                delay(1000)
+            }
+        }
+    }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                currentScreen = if (currentScreen == AppScreen.Screen1) AppScreen.Screen2 else AppScreen.Screen1
+            }
     ) {
-        val lightGreen = Color(0xFF90EE90)
-        
-        // Main Circle Button
-        val mainButtonSize = 240.dp
-        val darkGreen = Color(0xFF006400)
-        
-        OutlinedButton(
-            onClick = { isRunning = !isRunning },
-            modifier = Modifier.size(mainButtonSize),
-            shape = CircleShape,
-            border = BorderStroke(3.dp, lightGreen),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (isRunning) darkGreen else Color.Transparent,
-                contentColor = Color.White
-            )
-        ) {
-            // Label removed as per request
-        }
-        
-        Spacer(modifier = Modifier.height(60.dp)) // Gap: 1/4 of main button size
-        
-        Text(
-            text = timeFormatted,
-            fontSize = 56.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        // Smaller Exit Button
-        OutlinedButton(
-            onClick = { activity?.finish() },
+        Column(
             modifier = Modifier
-                .width(120.dp)
-                .height(50.dp),
-            border = BorderStroke(1.dp, lightGreen.copy(alpha = 0.7f)),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = Color.White.copy(alpha = 0.7f)
-            )
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Exit", fontSize = 18.sp)
+            val lightGreen = Color(0xFF90EE90)
+            val darkGreen = Color(0xFF006400)
+            val mainButtonSize = 240.dp
+
+            if (currentScreen == AppScreen.Screen1) {
+                // SCREEN 1 CONTENT
+                OutlinedButton(
+                    onClick = { isRunning1 = !isRunning1 },
+                    modifier = Modifier.size(mainButtonSize),
+                    shape = CircleShape,
+                    border = BorderStroke(3.dp, lightGreen),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isRunning1) darkGreen else Color.Transparent,
+                        contentColor = Color.White
+                    )
+                ) { }
+
+                Spacer(modifier = Modifier.height(60.dp))
+
+                val minutes = totalSeconds1 / 60
+                val remainingSeconds = totalSeconds1 % 60
+                Text(
+                    text = "%02d:%02d".format(minutes, remainingSeconds),
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            } else {
+                // SCREEN 2 CONTENT
+                OutlinedButton(
+                    onClick = { isRunning2 = !isRunning2 },
+                    modifier = Modifier.size(mainButtonSize),
+                    shape = CircleShape,
+                    border = BorderStroke(3.dp, lightGreen),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isRunning2) darkGreen else Color.Transparent,
+                        contentColor = Color.White
+                    )
+                ) { }
+
+                Spacer(modifier = Modifier.height(60.dp))
+
+                val hours = totalSeconds2 / 3600
+                val minutes = (totalSeconds2 % 3600) / 60
+                val seconds = totalSeconds2 % 60
+                Text(
+                    text = "%02d:%02d:%02d".format(hours, minutes, seconds),
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            OutlinedButton(
+                onClick = { activity?.finish() },
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(50.dp),
+                border = BorderStroke(1.dp, lightGreen.copy(alpha = 0.7f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = Color.White.copy(alpha = 0.7f)
+                )
+            ) {
+                Text("Exit", fontSize = 18.sp)
+            }
         }
     }
 }
@@ -175,16 +225,11 @@ private fun playToneForSecond(cycleSecond: Int) {
     val freq659 = 659.0 // E5
     
     when (cycleSecond) {
-        // 1-13: Short tones (392 Hz)
         in 1..13 -> generateTone(freq392, 100)
-        // 14: Long tone spanning 2 seconds (440 Hz)
         14 -> generateTone(freq440, 1800)
         15 -> { }
-        // 16-25: Silent
         in 16..25 -> { }
-        // 26-28: 3 short (523 Hz)
         in 26..28 -> generateTone(freq523, 100)
-        // 29: Long tone spanning 2 seconds (659 Hz)
         29 -> generateTone(freq659, 1800)
         30 -> { }
     }
@@ -195,23 +240,16 @@ private fun generateTone(freqHz: Double, durationMs: Int) {
     val numSamples = (durationMs * sampleRate / 1000)
     val sample = DoubleArray(numSamples)
     val generatedSnd = ByteArray(2 * numSamples)
-
-    // Fade-in and Fade-out parameters (to prevent clicking)
     val fadeDurationMs = 50
     val fadeSamples = (fadeDurationMs * sampleRate / 1000)
 
     for (i in 0 until numSamples) {
         var amplitude = 1.0
-        
-        // Apply Fade-in
         if (i < fadeSamples) {
             amplitude = i.toDouble() / fadeSamples
-        } 
-        // Apply Fade-out
-        else if (i > numSamples - fadeSamples) {
+        } else if (i > numSamples - fadeSamples) {
             amplitude = (numSamples - i).toDouble() / fadeSamples
         }
-
         sample[i] = amplitude * sin(2.0 * PI * i.toDouble() / (sampleRate.toDouble() / freqHz))
     }
 
@@ -244,7 +282,6 @@ private fun generateTone(freqHz: Double, durationMs: Int) {
     audioTrack.write(generatedSnd, 0, generatedSnd.size)
     audioTrack.play()
     
-    // Clean up
     Thread {
         Thread.sleep(durationMs.toLong() + 200)
         audioTrack.stop()
