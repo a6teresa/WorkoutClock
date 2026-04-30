@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.RingtoneManager
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -78,12 +79,26 @@ class MainActivity : ComponentActivity() {
 fun TickClockScreen() {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
-    var currentScreen by remember { mutableStateOf(AppScreen.Screen1) }
+    var currentScreen by remember { mutableStateOf(AppScreen.Screen2) }
+
+    // TTS Setup
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    DisposableEffect(Unit) {
+        val ttsInstance = TextToSpeech(context) { status ->
+            // Initialized
+        }
+        tts = ttsInstance
+        onDispose {
+            ttsInstance.stop()
+            ttsInstance.shutdown()
+        }
+    }
 
     // Screen 1 States
     var isRunning1 by remember { mutableStateOf(false) }
     var totalSeconds1 by remember { mutableIntStateOf(0) }
     var cycleSeconds1 by remember { mutableIntStateOf(0) }
+    var roundCount1 by remember { mutableIntStateOf(0) }
 
     // Screen 2 States
     var isRunning2 by remember { mutableStateOf(false) }
@@ -100,12 +115,31 @@ fun TickClockScreen() {
     // Logic for Screen 1 (with 30s audio cycle)
     LaunchedEffect(isRunning1) {
         if (isRunning1) {
+            // Fresh start: Jump to the beginning of the Preparation Phase (sec 26-30)
+            if (totalSeconds1 == 0 && cycleSeconds1 == 0) {
+                cycleSeconds1 = 25
+            }
+
             while (isRunning1) {
                 cycleSeconds1++
                 if (cycleSeconds1 > 30) cycleSeconds1 = 1
                 
+                // At the start of a cycle, increment round
+                if (cycleSeconds1 == 1) {
+                    roundCount1++
+                }
+
                 playToneForSecond(cycleSeconds1)
-                totalSeconds1++
+                
+                // Voice call at 16th second
+                if (cycleSeconds1 == 16) {
+                    tts?.speak(roundCount1.toString(), TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+
+                // Only increment cumulative workout time once a round has actually started
+                if (roundCount1 > 0) {
+                    totalSeconds1++
+                }
                 
                 if (totalSeconds1 > 0 && (totalSeconds1 % 240 == 225)) {
                     playNotificationSound(context)

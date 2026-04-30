@@ -4,19 +4,30 @@ A specialized minimalist timer application for Android designed for high-intensi
 
 ## Features
 
-- **Dynamic Audio Cycle (30 Seconds):**
-  - **01–13s:** Short beeps (392 Hz - G4) for pacing.
-  - **14–15s:** 2-second continuous long tone (440 Hz - A4).
-  - **16–25s:** Silent period for recovery or focus.
-  - **26–28s:** 3 short beeps (523 Hz - C5).
-  - **29–30s:** 2-second continuous long tone (659 Hz - E5).
+- **Workout Clock:** Repeating 30-second audio cycle with pacing beeps, rest periods, and a human voice (TTS) calling out the round number.
+- **Count Clock:** Standard HH:MM:SS timer with a system notification sound every minute.
+- **Clock Visuals:** Real-time clock hands and a "jumping" radar dot on the inner edge of the main circle.
 - **Smoothed Audio:** High-quality sine wave generation with 50ms fade-in/fade-out to eliminate clicking noises.
 - **Minimalist Aesthetic:** 
   - **Dark Mode:** Easy on the eyes in low-light environments.
   - **Always On:** Keeps the screen from sleeping while the app is active.
   - **Status Indicator:** Large circular button that fills with dark green when running and clears when paused.
-- **Cumulative Timer:** Large, bold display of total elapsed time in `MM:SS` format.
 - **Standard Volume Control:** Uses `USAGE_MEDIA` to respond directly to your phone's volume buttons.
+
+## Workout Cycle Breakdown (30 Seconds)
+
+The **Workout Clock** follows a repeating 30-second cycle designed for interval training:
+
+1. **Active Phase (Seconds 1–15)**
+   - **01–13s:** Short rhythmic beeps (392 Hz / G4) for pacing.
+   - **14s:** Continuous long tone (440 Hz / A4) signals the end of the set.
+2. **Transition & Callout (Second 16)**
+   - **16s:** Human voice (TTS) calls out the current **Round Number** (e.g., "One", "Two", "Three").
+3. **Recovery Phase (Seconds 17–25)**
+   - **17–25s:** Total silence for rest and focus.
+4. **Preparation Phase (Seconds 26–30)**
+   - **26–28s:** Three quick "alert" beeps (523 Hz / C5).
+   - **29s:** Final 2-second long tone (659 Hz / E5) leading into the next round.
 
 ## Layout & Dimensions
 
