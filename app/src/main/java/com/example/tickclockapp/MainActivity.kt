@@ -82,6 +82,14 @@ val routines = listOf(
             WorkoutStep(AppScreen.Screen1, 240), // 4m
             WorkoutStep(AppScreen.Screen1, 240)  // 4m
         )
+    ),
+    WorkoutRoutine(
+        "Workout 1-1-1",
+        listOf(
+            WorkoutStep(AppScreen.Screen2, 60), // 1m
+            WorkoutStep(AppScreen.Screen1, 60), // 1m
+            WorkoutStep(AppScreen.Screen1, 60)  // 1m
+        )
     )
 )
 
@@ -138,7 +146,7 @@ fun TickClockScreen() {
     }
 
     // Logic for Screen 1 (with 30s audio cycle)
-    LaunchedEffect(isRunning1) {
+    LaunchedEffect(isRunning1, workoutStepIndex) {
         if (isRunning1) {
             if ((totalSeconds1 == 0) && (cycleSeconds1 == 0)) {
                 cycleSeconds1 = 25
@@ -178,7 +186,7 @@ fun TickClockScreen() {
     }
 
     // Logic for Screen 2 (no beeps, TTS every 1 min)
-    LaunchedEffect(isRunning2) {
+    LaunchedEffect(isRunning2, workoutStepIndex) {
         if (isRunning2) {
             while (isRunning2) {
                 totalSeconds2++
@@ -279,7 +287,7 @@ fun TickClockScreen() {
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                val softRed = Color(0xFF8B0000)
+                val softRed = Color(0xFFD32F2F)
                 val pagerState = rememberPagerState { routines.size }
                 Box(modifier = Modifier.fillMaxWidth().height(80.dp)) {
                     HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { index ->
@@ -293,7 +301,8 @@ fun TickClockScreen() {
                                             isRunning2 = !isRunning2
                                         } else isRunning1 = !isRunning1
                                     } else if (!isWorkoutActive) {
-                                        tts?.speak("${routine.name} begins now", TextToSpeech.QUEUE_FLUSH, null, null)
+                                        val announcement = routine.name.replace("-", " ")
+                                        tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
                                         activeRoutineIndex = index
                                         workoutStepIndex = 0
                                         totalSeconds1 = 0
@@ -317,7 +326,7 @@ fun TickClockScreen() {
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(80.dp)) // Increased spacing to move Exit lower
+                Spacer(modifier = Modifier.height(100.dp)) // Moved Exit button lower
                 OutlinedButton(
                     onClick = { activity?.finish() },
                     modifier = Modifier.width(120.dp).height(50.dp),
