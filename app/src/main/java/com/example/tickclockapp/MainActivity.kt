@@ -58,6 +58,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -148,17 +151,21 @@ fun TickClockScreen() {
     // Logic for Screen 1 (with 30s audio cycle)
     LaunchedEffect(isRunning1, workoutStepIndex) {
         if (isRunning1) {
-            if ((totalSeconds1 == 0) && (cycleSeconds1 == 0)) {
-                cycleSeconds1 = 25
-            }
             while (isRunning1) {
                 cycleSeconds1++
                 if (cycleSeconds1 > 30) cycleSeconds1 = 1
                 if (cycleSeconds1 == 1) roundCount1++
+                
                 playToneForSecond(cycleSeconds1)
-                if (cycleSeconds1 == 16) {
+                
+                // Voice call at 21st second (Transition phase)
+                if (cycleSeconds1 == 21) {
                     tts?.speak(roundCount1.toString(), TextToSpeech.QUEUE_FLUSH, null, null)
                 }
+                
+                // Only increment cumulative workout time once we are in the Active phase (starts at sec 6)
+                // or if we already started rounds. 
+                // To keep it simple and match "10m, 5m, 5m" accurately:
                 if (roundCount1 > 0) totalSeconds1++
 
                 // Automation transition check
@@ -168,7 +175,20 @@ fun TickClockScreen() {
                         totalSeconds1 = 0
                         cycleSeconds1 = 0
                         roundCount1 = 0
+                        
                         if (workoutStepIndex < routines[activeRoutineIndex].steps.size - 1) {
+                            // Callout if first workout phase just ended (usually step index 1 in 10-5-5)
+                            if (workoutStepIndex == 1) {
+                                val sdfDate = SimpleDateFormat("EEEE MMMM d", Locale.getDefault())
+                                val sdfTime = SimpleDateFormat("h:mm a", Locale.getDefault())
+                                val now = Date()
+                                val dateStr = sdfDate.format(now)
+                                val timeStr = sdfTime.format(now)
+                                val msg = "Today is $dateStr, right now is $timeStr. start the next exercise"
+                                tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
+                                delay(1000) // Wait 1 second after TTS
+                            }
+
                             workoutStepIndex++
                             currentScreen = routines[activeRoutineIndex].steps[workoutStepIndex].screen
                             if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
@@ -385,19 +405,28 @@ private fun playNotificationSound(context: Context) {
 }
 
 private fun playToneForSecond(cycleSecond: Int) {
-    val freq392 = 392.0
-    val freq440 = 440.0
-    val freq523 = 523.0
-    val freq659 = 659.0
+    val freq392 = 392.0 // G4
+    val freq440 = 440.0 // A4
+    val freq523 = 523.0 // C5
+    val freq659 = 659.0 // E5
+    
     when (cycleSecond) {
-        in 1..13 -> generateTone(freq392, 100)
-        14 -> generateTone(freq440, 1800)
-        15 -> { }
-        in 16..25 -> { }
-        26 -> generateTone(freq523, 100, volume = 0.25f)
-        in 27..28 -> generateTone(freq523, 100)
-        29 -> generateTone(freq659, 1800)
-        30 -> { }
+        // 1. Preparation Phase (1-5s)
+        1 -> generateTone(freq523, 100, volume = 0.25f)
+        in 2..3 -> generateTone(freq523, 100)
+        4 -> generateTone(freq659, 1800)
+        5 -> { }
+        
+        // 2. Active Phase (6-20s)
+        in 6..18 -> generateTone(freq392, 100)
+        19 -> generateTone(freq440, 1800)
+        20 -> { }
+        
+        // 3. Transition (21s) - Voice call handled in LaunchedEffect
+        21 -> { }
+        
+        // 4. Recovery Phase (22-30s)
+        in 22..30 -> { }
     }
 }
 
