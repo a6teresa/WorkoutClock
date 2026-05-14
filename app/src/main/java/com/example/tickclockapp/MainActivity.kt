@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -197,7 +198,6 @@ fun TickClockScreen() {
                 // or if we already started rounds. 
                 if (roundCount1 > 0) totalSeconds1++
 
-                // Automation transition check
                 if (isWorkoutActive && (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen1)) {
                     if (totalSeconds1 >= routines[activeRoutineIndex].steps[workoutStepIndex].duration) {
                         isRunning1 = false
@@ -215,7 +215,6 @@ fun TickClockScreen() {
                         break
                     }
                 }
-                if ((totalSeconds1 > 0) && ((totalSeconds1 % 240) == 225)) playNotificationSound(context)
                 delay(1000)
             }
         }
@@ -228,7 +227,8 @@ fun TickClockScreen() {
                 totalSeconds2++
                 // Automation transition check
                 if (isWorkoutActive && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
-                    if (totalSeconds2 >= routines[activeRoutineIndex].steps[workoutStepIndex].duration) {
+                    val duration = routines[activeRoutineIndex].steps[workoutStepIndex].duration
+                    if (totalSeconds2 >= duration) {
                         isRunning2 = false
                         totalSeconds2 = 0
                         if (workoutStepIndex < routines[activeRoutineIndex].steps.size - 1) {
@@ -239,6 +239,15 @@ fun TickClockScreen() {
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
                         }
                         break
+                    } else if (duration - totalSeconds2 == 15) {
+                        // 15s before end sequence: C5 E5 G5
+                        launch {
+                            generateTone(523.0, 150)
+                            delay(250)
+                            generateTone(659.0, 150)
+                            delay(250)
+                            generateTone(784.0, 150)
+                        }
                     }
                 }
                 if ((totalSeconds2 > 0) && ((totalSeconds2 % 60) == 0)) {
