@@ -1,10 +1,8 @@
 package com.example.tickclockapp
 
-import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
-import android.media.RingtoneManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.view.WindowManager
@@ -72,7 +70,7 @@ data class WorkoutRoutine(val name: String, val steps: List<WorkoutStep>)
 
 val routines = listOf(
     WorkoutRoutine(
-        "Workout 10-5-5",
+        "Morning Exercises ☀️",
         listOf(
             WorkoutStep(AppScreen.Screen2, 600), // 10m
             WorkoutStep(AppScreen.Screen1, 300), // 5m
@@ -80,7 +78,7 @@ val routines = listOf(
         )
     ),
     WorkoutRoutine(
-        "Workout 8-4-4",
+        "Evening Exercises 🌙",
         listOf(
             WorkoutStep(AppScreen.Screen2, 480), // 8m
             WorkoutStep(AppScreen.Screen1, 240), // 4m
@@ -88,7 +86,7 @@ val routines = listOf(
         )
     ),
     WorkoutRoutine(
-        "Workout 1-1-1",
+        "Workout 1",
         listOf(
             WorkoutStep(AppScreen.Screen2, 60), // 1m
             WorkoutStep(AppScreen.Screen1, 60), // 1m
@@ -154,9 +152,9 @@ fun TickClockScreen() {
             // Step 0 is usually Count, Step 1 is first Workout.
             // When Step 1 ends, workoutStepIndex is incremented to 2.
             val msg = if (workoutStepIndex == 2) {
-                "Today is $dateStr, right now is $timeStr. start your next exercise"
+                "Today is $dateStr, right now is $timeStr. continue with your next exercise"
             } else {
-                "Time now is $timeStr, start your next exercise"
+                "Time now is $timeStr, continue with your next exercise"
             }
             
             tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
@@ -246,7 +244,7 @@ fun TickClockScreen() {
                             delay(250)
                             generateTone(659.0, 150)
                             delay(250)
-                            generateTone(784.0, 150)
+                            generateTone(784.0, 900)
                         }
                     }
                 }
@@ -361,7 +359,7 @@ fun TickClockScreen() {
                                             } else isRunning1 = !isRunning1
                                         }
                                     } else if (!isWorkoutActive) {
-                                        val announcement = routine.name.replace("-", " ")
+                                        val announcement = routine.name.replace("☀️", "").replace("🌙", "").replace("-", " ")
                                         tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
                                         activeRoutineIndex = index
                                         workoutStepIndex = 0
@@ -431,16 +429,6 @@ fun RealTimeClockOverlay(modifier: Modifier = Modifier) {
         rotate((second * 6f) - 90f) {
             drawCircle(color = Color.White, radius = 4.dp.toPx(), center = Offset(center.x + (radius - 6.dp.toPx()), center.y))
         }
-    }
-}
-
-private fun playNotificationSound(context: Context) {
-    try {
-        val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val r = RingtoneManager.getRingtone(context, notification)
-        r.play()
-    } catch (e: Exception) {
-        e.printStackTrace()
     }
 }
 
