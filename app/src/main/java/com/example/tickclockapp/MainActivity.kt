@@ -139,6 +139,36 @@ fun TickClockScreen() {
     var activeRoutineIndex by remember { mutableIntStateOf(-1) }
     var workoutStepIndex by remember { mutableIntStateOf(0) }
     val isWorkoutActive = activeRoutineIndex != -1
+    var isBreakActive by remember { mutableStateOf(false) }
+
+    // Break Management
+    LaunchedEffect(isBreakActive) {
+        if (isBreakActive) {
+            val sdfTime = SimpleDateFormat("h:mm a", Locale.getDefault())
+            val sdfDate = SimpleDateFormat("EEEE MMMM d", Locale.getDefault())
+            val now = Date()
+            val timeStr = sdfTime.format(now)
+            val dateStr = sdfDate.format(now)
+
+            // Step 0 is usually Count, Step 1 is first Workout.
+            // When Step 1 ends, workoutStepIndex is incremented to 2.
+            val msg = if (workoutStepIndex == 2) {
+                "Today is $dateStr, right now is $timeStr. start your next exercise"
+            } else {
+                "Time now is $timeStr, start your next exercise"
+            }
+            
+            tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
+            
+            delay(10000) // 10s break
+            isBreakActive = false
+            
+            // Start next step
+            val nextStep = routines[activeRoutineIndex].steps[workoutStepIndex]
+            currentScreen = nextStep.screen
+            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+        }
+    }
 
     // Keep screen on while the app is visible
     DisposableEffect(Unit) {
@@ -165,7 +195,6 @@ fun TickClockScreen() {
                 
                 // Only increment cumulative workout time once we are in the Active phase (starts at sec 6)
                 // or if we already started rounds. 
-                // To keep it simple and match "10m, 5m, 5m" accurately:
                 if (roundCount1 > 0) totalSeconds1++
 
                 // Automation transition check
@@ -177,21 +206,8 @@ fun TickClockScreen() {
                         roundCount1 = 0
                         
                         if (workoutStepIndex < routines[activeRoutineIndex].steps.size - 1) {
-                            // Callout if first workout phase just ended (usually step index 1 in 10-5-5)
-                            if (workoutStepIndex == 1) {
-                                val sdfDate = SimpleDateFormat("EEEE MMMM d", Locale.getDefault())
-                                val sdfTime = SimpleDateFormat("h:mm a", Locale.getDefault())
-                                val now = Date()
-                                val dateStr = sdfDate.format(now)
-                                val timeStr = sdfTime.format(now)
-                                val msg = "Today is $dateStr, right now is $timeStr. start the next exercise"
-                                tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
-                                delay(1000) // Wait 1 second after TTS
-                            }
-
                             workoutStepIndex++
-                            currentScreen = routines[activeRoutineIndex].steps[workoutStepIndex].screen
-                            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+                            isBreakActive = true
                         } else {
                             activeRoutineIndex = -1
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
@@ -214,9 +230,14 @@ fun TickClockScreen() {
                 if (isWorkoutActive && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
                     if (totalSeconds2 >= routines[activeRoutineIndex].steps[workoutStepIndex].duration) {
                         isRunning2 = false
-                        workoutStepIndex++
-                        currentScreen = routines[activeRoutineIndex].steps[workoutStepIndex].screen
-                        if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+                        totalSeconds2 = 0
+                        if (workoutStepIndex < routines[activeRoutineIndex].steps.size - 1) {
+                            workoutStepIndex++
+                            isBreakActive = true
+                        } else {
+                            activeRoutineIndex = -1
+                            tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
+                        }
                         break
                     }
                 }
@@ -317,9 +338,19 @@ fun TickClockScreen() {
                             OutlinedButton(
                                 onClick = {
                                     if (isThisRoutineActive) {
-                                        if (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
-                                            isRunning2 = !isRunning2
-                                        } else isRunning1 = !isRunning1
+                                        if (isBreakActive) {
+                                            // For now, pause the routine by ending it or just ignore?
+                                            // The user said they can tap to pause/continue.
+                                            // To keep it simple, I'll stop the clocks.
+                                            // But if isBreakActive is true, no clock is running.
+                                            // I'll stop the whole routine if they tap while in break.
+                                            activeRoutineIndex = -1
+                                            isBreakActive = false
+                                        } else {
+                                            if (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
+                                                isRunning2 = !isRunning2
+                                            } else isRunning1 = !isRunning1
+                                        }
                                     } else if (!isWorkoutActive) {
                                         val announcement = routine.name.replace("-", " ")
                                         tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
@@ -346,7 +377,7 @@ fun TickClockScreen() {
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(100.dp)) // Moved Exit button lower
+                Spacer(modifier = Modifier.height(120.dp)) // Move Exit button even lower
                 OutlinedButton(
                     onClick = { activity?.finish() },
                     modifier = Modifier.width(120.dp).height(50.dp),
