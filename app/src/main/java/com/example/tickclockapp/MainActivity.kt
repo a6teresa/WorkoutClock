@@ -29,12 +29,31 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +62,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,9 +84,11 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 enum class AppScreen { Screen1, Screen2 }
+enum class AppNav { Main, History, Settings }
 
 data class WorkoutStep(val screen: AppScreen, val duration: Int)
 data class WorkoutRoutine(val name: String, val steps: List<WorkoutStep>)
+data class WorkoutLog(val name: String, val timeRange: String)
 
 val routines = listOf(
     WorkoutRoutine(
@@ -106,12 +128,19 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun TickClockScreen() {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
     var currentScreen by remember { mutableStateOf(AppScreen.Screen2) }
+
+    // Navigation and Logs
+    var navState by remember { mutableStateOf(AppNav.Main) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var workoutLogs by remember { mutableStateOf<List<WorkoutLog>>(loadLogs(context)) }
+    var routineStartTime by remember { mutableStateOf("") }
 
     // TTS Setup
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -163,9 +192,11 @@ fun TickClockScreen() {
             isBreakActive = false
             
             // Start next step
-            val nextStep = routines[activeRoutineIndex].steps[workoutStepIndex]
-            currentScreen = nextStep.screen
-            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+            if (activeRoutineIndex != -1) {
+                val nextStep = routines[activeRoutineIndex].steps[workoutStepIndex]
+                currentScreen = nextStep.screen
+                if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+            }
         }
     }
 
@@ -196,7 +227,8 @@ fun TickClockScreen() {
                 // or if we already started rounds. 
                 if (roundCount1 > 0) totalSeconds1++
 
-                if (isWorkoutActive && (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen1)) {
+                // Automation transition check
+                if (isWorkoutActive && activeRoutineIndex != -1 && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen1) {
                     if (totalSeconds1 >= routines[activeRoutineIndex].steps[workoutStepIndex].duration) {
                         isRunning1 = false
                         totalSeconds1 = 0
@@ -207,7 +239,12 @@ fun TickClockScreen() {
                             workoutStepIndex++
                             isBreakActive = true
                         } else {
+                            val routineName = routines[activeRoutineIndex].name
                             activeRoutineIndex = -1
+                            val endTime = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+                            val logEntry = WorkoutLog(routineName, "$routineStartTime - $endTime")
+                            workoutLogs = (workoutLogs + logEntry).takeLast(50)
+                            saveLogs(context, workoutLogs)
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
                         }
                         break
@@ -224,7 +261,7 @@ fun TickClockScreen() {
             while (isRunning2) {
                 totalSeconds2++
                 // Automation transition check
-                if (isWorkoutActive && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
+                if (isWorkoutActive && activeRoutineIndex != -1 && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
                     val duration = routines[activeRoutineIndex].steps[workoutStepIndex].duration
                     if (totalSeconds2 >= duration) {
                         isRunning2 = false
@@ -233,7 +270,12 @@ fun TickClockScreen() {
                             workoutStepIndex++
                             isBreakActive = true
                         } else {
+                            val routineName = routines[activeRoutineIndex].name
                             activeRoutineIndex = -1
+                            val endTime = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+                            val logEntry = WorkoutLog(routineName, "$routineStartTime - $endTime")
+                            workoutLogs = (workoutLogs + logEntry).takeLast(50)
+                            saveLogs(context, workoutLogs)
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
                         }
                         break
@@ -244,7 +286,7 @@ fun TickClockScreen() {
                             delay(250)
                             generateTone(659.0, 150)
                             delay(250)
-                            generateTone(784.0, 900)
+                            generateTone(784.0, 300)
                         }
                     }
                 }
@@ -262,103 +304,158 @@ fun TickClockScreen() {
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Box(
-            modifier = Modifier.fillMaxSize().clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color(0xFF1C1C1C),
+                drawerContentColor = Color.White
             ) {
-                currentScreen = if (currentScreen == AppScreen.Screen1) AppScreen.Screen2 else AppScreen.Screen1
+                Spacer(modifier = Modifier.height(16.dp))
+                NavigationDrawerItem(
+                    label = { Text("Workout Timer") },
+                    selected = navState == AppNav.Main,
+                    onClick = { navState = AppNav.Main; scope.launch { drawerState.close() } },
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                )
+                NavigationDrawerItem(
+                    label = { Text("History") },
+                    selected = navState == AppNav.History,
+                    onClick = { navState = AppNav.History; scope.launch { drawerState.close() } },
+                    icon = { Icon(Icons.Default.History, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Settings") },
+                    selected = navState == AppNav.Settings,
+                    onClick = { navState = AppNav.Settings; scope.launch { drawerState.close() } },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+                )
             }
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when (navState) {
+                                AppNav.History -> "Workout History"
+                                AppNav.Settings -> "Settings"
+                                else -> ""
+                            },
+                            color = Color.White
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            },
+            containerColor = Color.Black
+        ) { padding ->
+            Surface(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                color = MaterialTheme.colorScheme.background
             ) {
-                val lightGreen = Color(0xFF90EE90)
-                val darkGreen = Color(0xFF006400)
-                val mainButtonSize = 240.dp
+                when (navState) {
+                    AppNav.Main -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize().clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                currentScreen = if (currentScreen == AppScreen.Screen1) AppScreen.Screen2 else AppScreen.Screen1
+                            }
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(16.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                val lightGreen = Color(0xFF90EE90)
+                                val darkGreen = Color(0xFF006400)
+                                val mainButtonSize = 240.dp
 
-                if (currentScreen == AppScreen.Screen1) {
-                    Surface(
-                        modifier = Modifier.size(mainButtonSize).combinedClickable(
-                            onClick = { isRunning1 = !isRunning1 },
-                            onLongClick = {
-                                isRunning1 = false
-                                totalSeconds1 = 0
-                                cycleSeconds1 = 0
-                                roundCount1 = 0
-                            },
-                        ),
-                        shape = CircleShape,
-                        border = BorderStroke(3.dp, lightGreen),
-                        color = if (isRunning1) darkGreen else Color.Transparent,
-                        contentColor = Color.White,
-                    ) {
-                        RealTimeClockOverlay()
-                    }
-                    Spacer(modifier = Modifier.height(60.dp))
-                    Text(
-                        text = "%02d:%02d".format(totalSeconds1 / 60, totalSeconds1 % 60),
-                        fontSize = 56.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                } else {
-                    Surface(
-                        modifier = Modifier.size(mainButtonSize).combinedClickable(
-                            onClick = { isRunning2 = !isRunning2 },
-                            onLongClick = {
-                                isRunning2 = false
-                                totalSeconds2 = 0
-                            },
-                        ),
-                        shape = CircleShape,
-                        border = BorderStroke(3.dp, lightGreen),
-                        color = if (isRunning2) darkGreen else Color.Transparent,
-                        contentColor = Color.White,
-                    ) {
-                        RealTimeClockOverlay()
-                    }
-                    Spacer(modifier = Modifier.height(60.dp))
-                    val hours = totalSeconds2 / 3600
-                    val minutes = (totalSeconds2 % 3600) / 60
-                    val seconds = totalSeconds2 % 60
-                    Text(
-                        text = "%02d:%02d:%02d".format(hours, minutes, seconds),
-                        fontSize = 56.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                                if (currentScreen == AppScreen.Screen1) {
+                                    Surface(
+                                        modifier = Modifier.size(mainButtonSize).combinedClickable(
+                                            onClick = { isRunning1 = !isRunning1 },
+                                            onLongClick = {
+                                                isRunning1 = false
+                                                totalSeconds1 = 0
+                                                cycleSeconds1 = 0
+                                                roundCount1 = 0
+                                            },
+                                        ),
+                                        shape = CircleShape,
+                                        border = BorderStroke(3.dp, lightGreen),
+                                        color = if (isRunning1) darkGreen else Color.Transparent,
+                                        contentColor = Color.White,
+                                    ) {
+                                        RealTimeClockOverlay()
+                                    }
+                                    Spacer(modifier = Modifier.height(60.dp))
+                                    Text(
+                                        text = "%02d:%02d".format(totalSeconds1 / 60, totalSeconds1 % 60),
+                                        fontSize = 56.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Surface(
+                                        modifier = Modifier.size(mainButtonSize).combinedClickable(
+                                            onClick = { isRunning2 = !isRunning2 },
+                                            onLongClick = {
+                                                isRunning2 = false
+                                                totalSeconds2 = 0
+                                            },
+                                        ),
+                                        shape = CircleShape,
+                                        border = BorderStroke(3.dp, lightGreen),
+                                        color = if (isRunning2) darkGreen else Color.Transparent,
+                                        contentColor = Color.White,
+                                    ) {
+                                        RealTimeClockOverlay()
+                                    }
+                                    Spacer(modifier = Modifier.height(60.dp))
+                                    val hours = totalSeconds2 / 3600
+                                    val minutes = (totalSeconds2 % 3600) / 60
+                                    val seconds = totalSeconds2 % 60
+                                    Text(
+                                        text = "%02d:%02d:%02d".format(hours, minutes, seconds),
+                                        fontSize = 56.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                                Spacer(modifier = Modifier.height(40.dp))
 
-                val softRed = Color(0xFFD32F2F)
-                val pagerState = rememberPagerState { routines.size }
-                Box(modifier = Modifier.fillMaxWidth().height(80.dp)) {
-                    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { index ->
-                        val routine = routines[index]
-                        val isThisRoutineActive = activeRoutineIndex == index
-                        Box(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-                            OutlinedButton(
-                                onClick = {
-                                    if (isThisRoutineActive) {
-                                        if (isBreakActive) {
-                                            // For now, pause the routine by ending it or just ignore?
-                                            // The user said they can tap to pause/continue.
-                                            // To keep it simple, I'll stop the clocks.
-                                            // But if isBreakActive is true, no clock is running.
-                                            // I'll stop the whole routine if they tap while in break.
-                                            activeRoutineIndex = -1
-                                            isBreakActive = false
-                                        } else {
-                                            if (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
-                                                isRunning2 = !isRunning2
-                                            } else isRunning1 = !isRunning1
-                                        }
-                                    } else if (!isWorkoutActive) {
+                                val softRed = Color(0xFFD32F2F)
+                                val pagerState = rememberPagerState { routines.size }
+                                Box(modifier = Modifier.fillMaxWidth().height(80.dp)) {
+                                    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { index ->
+                                        val routine = routines[index]
+                                        val isThisRoutineActive = activeRoutineIndex == index
+                                        Box(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (isThisRoutineActive) {
+                                                        if (isBreakActive) {
+                                                            activeRoutineIndex = -1
+                                                            isBreakActive = false
+                                                        } else {
+                                                            if (routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen2) {
+                                                                isRunning2 = !isRunning2
+                                                            } else isRunning1 = !isRunning1
+                                                        }
+                                                    } else if (!isWorkoutActive) {
                                         val announcement = routine.name.replace("☀️", "").replace("🌙", "").replace("-", " ")
                                         tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
                                         activeRoutineIndex = index
@@ -367,31 +464,40 @@ fun TickClockScreen() {
                                         cycleSeconds1 = 0
                                         roundCount1 = 0
                                         totalSeconds2 = 0
-                                        currentScreen = routine.steps[0].screen
-                                        if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+                                        routineStartTime = SimpleDateFormat("yyyy-MM-dd h:mm a", Locale.getDefault()).format(Date())
+                                        if (index != -1 && index < routines.size) {
+                                            currentScreen = routines[index].steps[0].screen
+                                            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+                                        }
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(2.dp, if (isThisRoutineActive) softRed else lightGreen.copy(alpha = 0.7f)),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isThisRoutineActive) softRed.copy(alpha = 0.2f) else Color.Transparent,
-                                    contentColor = if (isThisRoutineActive) Color.White else Color.White.copy(alpha = 0.7f),
-                                ),
-                            ) {
-                                Text(text = routine.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                                                },
+                                                modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(2.dp, if (isThisRoutineActive) softRed else lightGreen.copy(alpha = 0.7f)),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = if (isThisRoutineActive) softRed.copy(alpha = 0.2f) else Color.Transparent,
+                                                    contentColor = if (isThisRoutineActive) Color.White else Color.White.copy(alpha = 0.7f),
+                                                ),
+                                            ) {
+                                                Text(text = routine.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(120.dp))
+                                OutlinedButton(
+                                    onClick = { activity?.finish() },
+                                    modifier = Modifier.width(120.dp).height(50.dp),
+                                    border = BorderStroke(1.dp, lightGreen.copy(alpha = 0.7f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color.White.copy(alpha = 0.7f))
+                                ) {
+                                    Text("Exit", fontSize = 18.sp)
+                                }
                             }
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(120.dp)) // Move Exit button even lower
-                OutlinedButton(
-                    onClick = { activity?.finish() },
-                    modifier = Modifier.width(120.dp).height(50.dp),
-                    border = BorderStroke(1.dp, lightGreen.copy(alpha = 0.7f)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color.White.copy(alpha = 0.7f))
-                ) {
-                    Text("Exit", fontSize = 18.sp)
+                    AppNav.History -> HistoryScreen(workoutLogs)
+                    AppNav.Settings -> SettingsScreen()
                 }
             }
         }
@@ -506,4 +612,61 @@ private fun generateTone(freqHz: Double, durationMs: Int, volume: Float = 1.0f) 
             e.printStackTrace()
         }
     }.start()
+}
+
+@Composable
+fun HistoryScreen(logs: List<WorkoutLog>) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (logs.isEmpty()) {
+            item {
+                Text("No history yet.", color = Color.Gray)
+            }
+        } else {
+            items(logs.asReversed()) { log ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = log.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF90EE90)
+                    )
+                    Text(
+                        text = log.timeRange,
+                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Settings will be worked on later", color = Color.White, fontSize = 18.sp)
+    }
+}
+
+private fun saveLogs(context: android.content.Context, logs: List<WorkoutLog>) {
+    val prefs = context.getSharedPreferences("workout_logs", android.content.Context.MODE_PRIVATE)
+    val data = logs.joinToString(";") { "${it.name}|${it.timeRange}" }
+    prefs.edit().putString("entries", data).apply()
+}
+
+private fun loadLogs(context: android.content.Context): List<WorkoutLog> {
+    val prefs = context.getSharedPreferences("workout_logs", android.content.Context.MODE_PRIVATE)
+    val data = prefs.getString("entries", "") ?: ""
+    if (data.isEmpty()) return emptyList()
+    return data.split(";").map {
+        val parts = it.split("|")
+        if (parts.size == 2) WorkoutLog(parts[0], parts[1]) else WorkoutLog(parts[0], "")
+    }
 }
