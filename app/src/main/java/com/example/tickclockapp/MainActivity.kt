@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -84,7 +85,7 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 enum class AppScreen { Screen1, Screen2 }
-enum class AppNav { Main, History, Settings }
+enum class AppNav { Main, History, Workouts }
 
 data class WorkoutStep(val screen: AppScreen, val duration: Int)
 data class WorkoutRoutine(val name: String, val steps: List<WorkoutStep>)
@@ -229,7 +230,8 @@ fun TickClockScreen() {
 
                 // Automation transition check
                 if (isWorkoutActive && activeRoutineIndex != -1 && routines[activeRoutineIndex].steps[workoutStepIndex].screen == AppScreen.Screen1) {
-                    if (totalSeconds1 >= routines[activeRoutineIndex].steps[workoutStepIndex].duration) {
+                    val duration = routines[activeRoutineIndex].steps[workoutStepIndex].duration
+                    if (totalSeconds1 >= duration) {
                         isRunning1 = false
                         totalSeconds1 = 0
                         cycleSeconds1 = 0
@@ -246,6 +248,7 @@ fun TickClockScreen() {
                             workoutLogs = (workoutLogs + logEntry).takeLast(50)
                             saveLogs(context, workoutLogs)
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
+                            navState = AppNav.History
                         }
                         break
                     }
@@ -277,8 +280,13 @@ fun TickClockScreen() {
                             workoutLogs = (workoutLogs + logEntry).takeLast(50)
                             saveLogs(context, workoutLogs)
                             tts?.speak("Workout complete", TextToSpeech.QUEUE_FLUSH, null, null)
+                            navState = AppNav.History
                         }
                         break
+                    } else if (duration - totalSeconds2 == 30) {
+                        val minutes = totalSeconds2 / 60
+                        val msg = if (minutes > 0) "$minutes minutes and 30 seconds" else "30 seconds"
+                        tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
                     } else if (duration - totalSeconds2 == 15) {
                         // 15s before end sequence: C5 E5 G5
                         launch {
@@ -327,9 +335,9 @@ fun TickClockScreen() {
                     colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                 )
                 NavigationDrawerItem(
-                    label = { Text("Settings") },
-                    selected = navState == AppNav.Settings,
-                    onClick = { navState = AppNav.Settings; scope.launch { drawerState.close() } },
+                    label = { Text("Workouts") },
+                    selected = navState == AppNav.Workouts,
+                    onClick = { navState = AppNav.Workouts; scope.launch { drawerState.close() } },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
                 )
@@ -343,7 +351,7 @@ fun TickClockScreen() {
                         Text(
                             when (navState) {
                                 AppNav.History -> "Workout History"
-                                AppNav.Settings -> "Settings"
+                                AppNav.Workouts -> "Workouts"
                                 else -> ""
                             },
                             color = Color.White
@@ -456,20 +464,20 @@ fun TickClockScreen() {
                                                             } else isRunning1 = !isRunning1
                                                         }
                                                     } else if (!isWorkoutActive) {
-                                        val announcement = routine.name.replace("☀️", "").replace("🌙", "").replace("-", " ")
-                                        tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
-                                        activeRoutineIndex = index
-                                        workoutStepIndex = 0
-                                        totalSeconds1 = 0
-                                        cycleSeconds1 = 0
-                                        roundCount1 = 0
-                                        totalSeconds2 = 0
-                                        routineStartTime = SimpleDateFormat("yyyy-MM-dd h:mm a", Locale.getDefault()).format(Date())
-                                        if (index != -1 && index < routines.size) {
-                                            currentScreen = routines[index].steps[0].screen
-                                            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
-                                        }
-                                    }
+                                                        val announcement = routine.name.replace("☀️", "").replace("🌙", "").replace("-", " ")
+                                                        tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        activeRoutineIndex = index
+                                                        workoutStepIndex = 0
+                                                        totalSeconds1 = 0
+                                                        cycleSeconds1 = 0
+                                                        roundCount1 = 0
+                                                        totalSeconds2 = 0
+                                                        routineStartTime = SimpleDateFormat("yyyy-MM-dd h:mm a", Locale.getDefault()).format(Date())
+                                                        if (index != -1 && index < routines.size) {
+                                                            currentScreen = routines[index].steps[0].screen
+                                                            if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
+                                                        }
+                                                    }
                                                 },
                                                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                                                 shape = RoundedCornerShape(8.dp),
@@ -496,8 +504,11 @@ fun TickClockScreen() {
                             }
                         }
                     }
-                    AppNav.History -> HistoryScreen(workoutLogs)
-                    AppNav.Settings -> SettingsScreen()
+                    AppNav.History -> {
+                        BackHandler { navState = AppNav.Main }
+                        HistoryScreen(workoutLogs)
+                    }
+                    AppNav.Workouts -> WorkoutsScreen()
                 }
             }
         }
@@ -649,9 +660,9 @@ fun HistoryScreen(logs: List<WorkoutLog>) {
 }
 
 @Composable
-fun SettingsScreen() {
+fun WorkoutsScreen() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Settings will be worked on later", color = Color.White, fontSize = 18.sp)
+        Text("Workouts will be worked on later", color = Color.White, fontSize = 18.sp)
     }
 }
 
