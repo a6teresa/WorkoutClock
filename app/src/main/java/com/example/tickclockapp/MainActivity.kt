@@ -621,13 +621,14 @@ fun RealTimeClockOverlay(modifier: Modifier = Modifier) {
         val radius = size.minDimension / 2
         val accentColor = Color(0xFF90EE90)
 
-        // Draw hour ticks around the circle
-        for (i in 0 until 60 step 5) {
-            rotate(i * 6f, pivot = center) {
-                val tickLength = 8.dp.toPx() // Length: 8dp
+        // Draw specific ticks (55-00) at the top of the circle
+        for (i in listOf(55, 56, 57, 58, 59, 0)) {
+            val isHour = i % 5 == 0
+            rotate(i * 6f - 90f, pivot = center) {
+                val tickLength = (if (isHour) 7.dp else 5.dp).toPx()
                 val startInward = 8.dp.toPx() 
                 drawLine(
-                    color = accentColor,
+                    color = if (isHour) accentColor else Color.White.copy(alpha = 0.5f),
                     start = Offset(center.x + radius - startInward - tickLength, center.y),
                     end = Offset(center.x + radius - startInward, center.y),
                     strokeWidth = 2.dp.toPx(),
