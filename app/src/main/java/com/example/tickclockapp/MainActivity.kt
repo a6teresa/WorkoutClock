@@ -9,6 +9,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.core.content.edit
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -107,14 +108,14 @@ data class WorkoutStep(val screen: AppScreen, val duration: Int)
 data class WorkoutRoutine(val name: String, val steps: List<WorkoutStep>)
 data class WorkoutLog(val name: String, val timeRange: String)
 
-val routines = listOf(
+private val defaultRoutines = listOf(
     WorkoutRoutine(
         "Morning Exercises ☀️",
         listOf(
             WorkoutStep(AppScreen.Screen2, 600), // 10m
             WorkoutStep(AppScreen.Screen1, 300), // 5m
-            WorkoutStep(AppScreen.Screen1, 300)  // 5m
-        )
+            WorkoutStep(AppScreen.Screen1, 300), // 5m
+        ),
     ),
     WorkoutRoutine(
         "Evening Exercises 🌙",
@@ -133,8 +134,6 @@ val routines = listOf(
         )
     )
 )
-
-private val defaultRoutines = routines
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -158,14 +157,21 @@ fun TickClockScreen() {
     var navState by remember { mutableStateOf(AppNav.Main) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var workoutLogs by remember { mutableStateOf<List<WorkoutLog>>(loadLogs(context)) }
-    var routines by remember { mutableStateOf<List<WorkoutRoutine>>(loadRoutines(context)) }
+    var workoutLogs by remember { mutableStateOf(loadLogs(context)) }
+    var routines by remember { mutableStateOf(loadRoutines(context)) }
     var routineStartTime by remember { mutableStateOf("") }
 
     // TTS Setup
+    var isTtsReady by remember { mutableStateOf(value = false) }
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     DisposableEffect(Unit) {
-        val ttsInstance = TextToSpeech(context) { _ -> }
+        var ttsInstance: TextToSpeech? = null
+        ttsInstance = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                ttsInstance?.language = Locale.getDefault()
+                isTtsReady = true
+            }
+        }
         tts = ttsInstance
         onDispose {
             ttsInstance.stop()
@@ -187,7 +193,7 @@ fun TickClockScreen() {
     var activeRoutineIndex by remember { mutableIntStateOf(-1) }
     var workoutStepIndex by remember { mutableIntStateOf(0) }
     val isWorkoutActive = activeRoutineIndex != -1
-    var isBreakActive by remember { mutableStateOf(false) }
+    var isBreakActive by remember { mutableStateOf(value = false) }
 
     // Break Management
     LaunchedEffect(isBreakActive) {
@@ -212,7 +218,7 @@ fun TickClockScreen() {
             isBreakActive = false
             
             // Start next step
-            if (activeRoutineIndex != -1 && workoutStepIndex < routines[activeRoutineIndex].steps.size) {
+            if ((activeRoutineIndex != -1) && (workoutStepIndex < routines[activeRoutineIndex].steps.size)) {
                 val nextStep = routines[activeRoutineIndex].steps[workoutStepIndex]
                 currentScreen = nextStep.screen
                 if (currentScreen == AppScreen.Screen1) isRunning1 = true else isRunning2 = true
@@ -377,13 +383,29 @@ fun TickClockScreen() {
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                        IconButton(
+                            onClick = { scope.launch { drawerState.open() } },
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "Menu",
+                                tint = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
                     },
                     actions = {
-                        IconButton(onClick = { activity?.finish() }) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Exit", tint = Color.White)
+                        IconButton(
+                            onClick = { activity?.finish() },
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Exit",
+                                tint = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -478,7 +500,7 @@ fun TickClockScreen() {
                                         val routine = routines[index]
                                         val isThisRoutineActive = activeRoutineIndex == index
                                         val totalElapsedSeconds = if (isThisRoutineActive) {
-                                            val completedStepsDuration = routine.steps.take(workoutStepIndex).sumOf { it.duration }
+                                            val completedStepsDuration = routine.steps.asSequence().take(workoutStepIndex).sumOf { it.duration }
                                             if (!isBreakActive && workoutStepIndex < routine.steps.size) {
                                                 val currentStepDuration = if (routine.steps[workoutStepIndex].screen == AppScreen.Screen1) totalSeconds1 else totalSeconds2
                                                 completedStepsDuration + currentStepDuration
@@ -501,7 +523,16 @@ fun TickClockScreen() {
                                                         }
                                                     } else if (!isWorkoutActive) {
                                                         val announcement = routine.name.replace("☀️", "").replace("🌙", "").replace("-", " ")
-                                                        tts?.speak("$announcement begins now", TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        val msg = "$announcement begins now"
+                                                        if (isTtsReady) {
+                                                            tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
+                                                        } else {
+                                                            // If not ready, try to speak once it becomes ready
+                                                            scope.launch {
+                                                                while (!isTtsReady) { delay(100) }
+                                                                tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
+                                                            }
+                                                        }
                                                         activeRoutineIndex = index
                                                         workoutStepIndex = 0
                                                         totalSeconds1 = 0
@@ -767,41 +798,46 @@ fun WorkoutsScreen(
     onSave: (List<WorkoutRoutine>) -> Unit
 ) {
     var routinesState by remember { mutableStateOf(initialRoutines) }
-    var editingRoutineIndex by remember { mutableIntStateOf(-1) }
-    var showDiscardDialog by remember { mutableStateOf(false) }
+    val editingRoutineIndex = remember { mutableIntStateOf(-1) }
+    val showDiscardDialog = remember { mutableStateOf(false) }
 
     val isDirty = routinesState != initialRoutines
 
     BackHandler {
         if (isDirty) {
-            showDiscardDialog = true
+            showDiscardDialog.value = true
         } else {
             onSave(initialRoutines) // Just go back
         }
     }
 
-    if (showDiscardDialog) {
+    if (showDiscardDialog.value) {
+        val dismiss = { showDiscardDialog.value = false }
         AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
+            onDismissRequest = dismiss,
             title = { Text("Unsaved Changes") },
             text = { Text("You have unsaved changes. Do you want to save or discard them?") },
             confirmButton = {
-                TextButton(onClick = {
-                    onSave(routinesState)
-                    showDiscardDialog = false
-                }) { Text("Save") }
+                TextButton(
+                    onClick = {
+                        dismiss()
+                        onSave(routinesState)
+                    }
+                ) { Text("Save") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    onSave(initialRoutines)
-                    showDiscardDialog = false
-                }) { Text("Discard") }
+                TextButton(
+                    onClick = {
+                        dismiss()
+                        onSave(initialRoutines)
+                    }
+                ) { Text("Discard") }
             }
         )
     }
 
-    if (editingRoutineIndex != -1) {
-        val routine = routinesState[editingRoutineIndex]
+    if (editingRoutineIndex.intValue != -1) {
+        val routine = routinesState[editingRoutineIndex.intValue]
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("Edit Workout", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(modifier = Modifier.height(16.dp))
@@ -809,7 +845,7 @@ fun WorkoutsScreen(
                 value = routine.name,
                 onValueChange = { if (it.length <= 25) {
                     routinesState = routinesState.toMutableList().apply {
-                        this[editingRoutineIndex] = routine.copy(name = it)
+                        this[editingRoutineIndex.intValue] = routine.copy(name = it)
                     }
                 } },
                 label = { Text("Name") },
@@ -837,7 +873,7 @@ fun WorkoutsScreen(
                                     val newSteps = routine.steps.toMutableList().apply {
                                         this[stepIdx] = step.copy(screen = nextType)
                                     }
-                                    this[editingRoutineIndex] = routine.copy(steps = newSteps)
+                                    this[editingRoutineIndex.intValue] = routine.copy(steps = newSteps)
                                 }
                             },
                             modifier = Modifier.width(100.dp)
@@ -853,7 +889,7 @@ fun WorkoutsScreen(
                                     val newSteps = routine.steps.toMutableList().apply {
                                         this[stepIdx] = step.copy(duration = newMins * 60)
                                     }
-                                    this[editingRoutineIndex] = routine.copy(steps = newSteps)
+                                    this[editingRoutineIndex.intValue] = routine.copy(steps = newSteps)
                                 }
                             },
                             label = { Text("Min") },
@@ -870,7 +906,7 @@ fun WorkoutsScreen(
                         IconButton(onClick = {
                             routinesState = routinesState.toMutableList().apply {
                                 val newSteps = routine.steps.toMutableList().apply { removeAt(stepIdx) }
-                                this[editingRoutineIndex] = routine.copy(steps = newSteps)
+                                this[editingRoutineIndex.intValue] = routine.copy(steps = newSteps)
                             }
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete Step", tint = Color.Red)
@@ -883,7 +919,7 @@ fun WorkoutsScreen(
                             val newSteps = routine.steps.toMutableList().apply {
                                 add(WorkoutStep(AppScreen.Screen2, 60))
                             }
-                            this[editingRoutineIndex] = routine.copy(steps = newSteps)
+                            this[editingRoutineIndex.intValue] = routine.copy(steps = newSteps)
                         }
                     }) {
                         Icon(Icons.Default.Add, contentDescription = null)
@@ -892,7 +928,7 @@ fun WorkoutsScreen(
                 }
             }
             Button(
-                onClick = { editingRoutineIndex = -1 },
+                onClick = { editingRoutineIndex.intValue = -1 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF006400))
             ) {
@@ -936,7 +972,7 @@ fun WorkoutsScreen(
                             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move Down", tint = if (idx < routinesState.size - 1) Color.White else Color.Gray)
                         }
                         Text(routinesState[idx].name, modifier = Modifier.weight(1f), fontSize = 18.sp, color = Color.White)
-                        OutlinedButton(onClick = { editingRoutineIndex = idx }) {
+                        OutlinedButton(onClick = { editingRoutineIndex.intValue = idx }) {
                             Text("Edit")
                         }
                         IconButton(onClick = {
@@ -948,7 +984,7 @@ fun WorkoutsScreen(
                 }
                 item {
                     TextButton(onClick = {
-                        routinesState = routinesState + WorkoutRoutine("New Workout", listOf(WorkoutStep(AppScreen.Screen2, 60)))
+                        routinesState += WorkoutRoutine("New Workout", listOf(WorkoutStep(AppScreen.Screen2, 60)))
                     }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Text("Add Workout")
@@ -967,13 +1003,15 @@ fun WorkoutsScreen(
 }
 
 private fun saveRoutines(context: android.content.Context, routines: List<WorkoutRoutine>) {
-    val prefs = context.getSharedPreferences("workout_routines", android.content.Context.MODE_PRIVATE)
     // Format: Name|StepType,Duration;StepType,Duration...||NextRoutine
     val data = routines.joinToString("||") { routine ->
         val stepsData = routine.steps.joinToString(";") { "${if (it.screen == AppScreen.Screen1) "W" else "C"},${it.duration}" }
         "${routine.name}|$stepsData"
     }
-    prefs.edit().putString("routines_v1", data).apply()
+    val prefs = context.getSharedPreferences("workout_routines", android.content.Context.MODE_PRIVATE)
+    prefs.edit {
+        putString("routines_v1", data)
+    }
 }
 
 private fun loadRoutines(context: android.content.Context): List<WorkoutRoutine> {
@@ -996,7 +1034,7 @@ private fun loadRoutines(context: android.content.Context): List<WorkoutRoutine>
             } else emptyList()
             WorkoutRoutine(name, steps)
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         defaultRoutines
     }
 }
@@ -1004,7 +1042,9 @@ private fun loadRoutines(context: android.content.Context): List<WorkoutRoutine>
 private fun saveLogs(context: android.content.Context, logs: List<WorkoutLog>) {
     val prefs = context.getSharedPreferences("workout_logs", android.content.Context.MODE_PRIVATE)
     val data = logs.joinToString(";") { "${it.name}|${it.timeRange}" }
-    prefs.edit().putString("entries", data).apply()
+    prefs.edit {
+        putString("entries", data)
+    }
 }
 
 private fun loadLogs(context: android.content.Context): List<WorkoutLog> {
